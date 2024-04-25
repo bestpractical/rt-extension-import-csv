@@ -1,0 +1,254 @@
+NAME
+    RT-Extension-Import-CSV
+
+DESCRIPTION
+    Import data into RT from CSVs.
+
+REQUIREMENTS
+    Perl module Text::CSV_XS
+
+RT VERSION
+    Works with RT 5.
+
+INSTALLATION
+    perl Makefile.PL
+    make
+    make install
+        May need root permissions
+
+    Edit your /opt/rt5/etc/RT_SiteConfig.pm
+        Add this line:
+
+            Plugin('RT::Extension::Import::CSV');
+
+    Clear your mason cache
+            rm -rf /opt/rt5/var/mason_data/obj
+
+    Restart your webserver
+
+CONFIGURATION
+    The following configuration would be used to import a three-column CSV
+    of tickets, where the custom field Original Ticket ID must be unique.
+    That option can accept multiple values and the combination of values
+    must find no existing tickets for insert, or a single ticket for update.
+    If multiple tickets match, the CSV row is skipped.
+
+        Set( @TicketsImportUniqueCFs, ('Original Ticket ID') );
+        Set( %TicketsImportFieldMapping,
+            'Created'               => 'Ticket-Create-Date',
+            'CF.Original Ticket ID' => 'TicketID',
+            'Subject'               => 'name',
+        );
+
+  Excluding Existing Tickets By Status
+    Some tickets will be opened, issues will be fixed, and the ticket will
+    be marked as closed. Later, the same asset (e.g., a server) may have a
+    new ticket opened for a newly found issue. In these cases, a new ticket
+    should be created and the previous ticket should not be re-opened. To
+    instruct the importer to exclude tickets in some statuses, set the
+    following option:
+
+        Set( @ExcludeStatusesOnSearch, ('reported_fixed'));
+
+  Constant values
+    If you want to set an RT column or custom field to a static value for
+    all imported tickets, precede the "CSV field name" (right hand side of
+    the mapping) with a slash, like so:
+
+        Set( %TicketsImportFieldMapping,
+            'Queue'                => \'General',
+            'Created'              => 'Ticket-Create-Date',
+            'CF.Original TicketID' => 'TicketID',
+            'Subject'              => 'name',
+        );
+
+    Every imported ticket will now be added to the 'General' queue. This
+    feature is particularly useful for setting the queue, but may also be
+    useful when importing tickets from CSV sources you don't control (and
+    don't want to modify each time).
+
+  Computed values
+    You may also compute values during import, by passing a subroutine
+    reference as the value in the %TicketsImportFieldMapping. This
+    subroutine will be called with a hash reference of the parsed CSV row.
+    In the following example, the subroutine assigned to the 'Status' field
+    takes the value in the 'status' CSV column and replaces underscores with
+    spaces.
+
+        Set( %TicketsImportFieldMapping,
+            'Queue'                => \'General',
+            'Created'              => 'Ticket-Create-Date',
+            'CF.Original TicketID' => 'TicketID',
+            'Subject'              => 'name',
+            'Status'               => sub { $_[0]->{status} =~ s/_/ /gr; },
+        );
+
+    Using computed columns may cause false-positive "unused column"
+    warnings; these can be ignored.
+
+  Mandatory fields
+    To mark some ticket fields mandatory:
+
+        Set( @TicketMandatoryFields, 'CF.Severity' );
+
+    Then rows without "CF.Seveirty" values will be skipped.
+
+  Extra Options for Text::CSV_XS
+    The CSV importer is configured to read the CSV import format determined
+    when initially testing. However, the Text::CSV_XS module is configurable
+    and can handle different CSV variations. You can pass through custom
+    options using the configuration below. Available options are described
+    in the documentation for Text::CSV_XS.
+
+        Set( %CSVOptions, (
+            binary      => 1,
+            sep_char    => ';',
+            quote_char  => '`',
+            escape_char => '`',
+        ) );
+
+  Operations before Create or Update
+    The importer provides a callback to run operations before a ticket has
+    been created or updated from CSV content. To run some code before an
+    update, add the following to your CSV configuration file:
+
+        Set($PreTicketChangeCallback,
+            sub {
+                my %args = (
+                    TicketObj   => undef,
+                    Row         => undef,
+                    Type        => undef,
+                    CurrentUser => undef,
+                    @_,
+                );
+                return 1;    # to continue processing current row
+            }
+        );
+
+    As shown, you receive the ticket object(only for "Update" type), the
+    current CSV row, and the type of update, "Create" or "Update".
+    CurrentUser is also passed as it may be needed to call other methods.
+    You can run any code in the callback.
+
+    The Row argument is a reference to a hash with the values from the CSV
+    file. The keys are the columns from the file and match the CSV import
+    configuration. The values are for the row currently being processed.
+
+    Since the Row argument is a reference, you can modify the value before
+    it is processed. For example, to lower case incoming status values, you
+    could do this:
+
+        if ( exists $args{'Row'}->{status} ) {
+            $args{'Row'}->{status} = lc($args{'Row'}->{status});
+        }
+
+    If you return a false value, the change for that row is skipped, e.g.
+
+        return ( 0, "Obsolete data" );
+
+    Return a true value to process that row normally.
+
+        return 1;
+
+  Operations after Create or Update
+    The importer provides a callback to run operations after a ticket has
+    been created or updated from CSV content. To run some code after an
+    update, add the following to your CSV configuration file:
+
+        Set($PostTicketChangeCallback,
+            sub {
+                my %args = (
+                    TicketObj   => undef,
+                    Row         => undef,
+                    Type        => undef,
+                    CurrentUser => undef,
+                    @_,
+                );
+            }
+        );
+
+    As shown, you receive the ticket object, the current CSV row, and the
+    type of update, "Create" or "Update". CurrentUser is also passed as it
+    may be needed to call other methods. You can run any code in the
+    callback. It expects no return value.
+
+  Special Columns
+    Comment or Correspond
+        To add a comment or correspond (reply) to a ticket, you can map a
+        CSV column to "Comment" or "Correspond". When creating a ticket
+        (--insert) you can use either one and the content will be added to
+        the Create transaction.
+
+  TicketsImportTicketIdField
+    If the CSV data contains the ids of existing RT tickets, you can set
+    this option to the name of the column containing the RT ticket id. The
+    importer will then search for that ticket id and update the ticket data
+    with CSV values.
+
+        Set($TicketsImportTicketIdField, 'RT ticket id');
+
+    Only one of TicketsImportTicketIdField or @TicketsImportUniqueCFs can be
+    used for a given CSV file. Also, this option is only valid for --update
+    or --insert-update modes. You cannot specify the ticket id to be created
+    in --insert mode.
+
+  TicketTolerantRoles
+    By default, if a user can't be loaded via LDAP for a role, like Owner,
+    the importer will log it and skip creating the ticket. For roles that do
+    not require a successfully loaded user, set this option with the role
+    name. The importer will then log the failed attempt to find the user,
+    but still create the ticket.
+
+        Set(@TicketTolerantRoles, 'CR.Subscribers Peers');
+
+  TransactionsImportFieldMapping
+    Set the column mappings for importing transactions from a CSV file. A
+    'TicketID' mapping is required for RT to add the transaction to an
+    existing ticket. The 'TicketID' value is mapped to the custom field
+    'Original Ticket ID'.
+
+    Attachments can be included by providing the file system path for an
+    attachment.
+
+        Set( %TransactionsImportFieldMapping,
+            'Attachment'     => 'Attachment',
+            'TicketID'       => 'SomeID',
+            'Date'           => 'Created',
+            'Type'           => 'Type',
+            'Content'        => 'Content',
+            'AttachmentType' => 'FileType'
+        );
+
+EXECUTION
+    To import tickets from a CSV file, run the following command:
+
+        local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+           --config /full/path/to/the/config/file/tickets-config.pm \
+           --type ticket \
+           /full/path/to/the/csv/file/tickets.csv
+
+           Note: full path to the config file and CSV files are required
+
+    To import transactions from a CSV file, run the following command:
+
+            local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+            --config /full/path/to/the/config/file/transactions-config.pm \
+            --type transaction \
+            /full/path/to/the/csv/file/transactions.csv
+
+            Note: full path to the config file and CSV files are required
+
+AUTHOR
+    Best Practical Solutions, LLC <modules@bestpractical.com>
+
+    All bugs should be reported via email to
+        bug-RT-Extension-Import-CSV@rt.cpan.org
+    or via the web at
+        http://rt.cpan.org/Public/Dist/Display.html?Name=RT-Extension-Import-CSV
+LICENSE AND COPYRIGHT
+    This software is Copyright (c) 2021 by Best Practical LLC
+
+    This is free software, licensed under:
+
+      The GNU General Public License, Version 2, June 1991
+
