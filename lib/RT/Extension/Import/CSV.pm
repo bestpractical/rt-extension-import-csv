@@ -1285,7 +1285,36 @@ RT-Extension-Import-CSV
 
 =head1 DESCRIPTION
 
-Import data into RT from CSVs.
+This extension is used to import data from a comma-separated value
+(CSV) file, or any other sort of delimited file, into RT. The importer
+provides functionality for importing tickets, transactions, users, and
+articles.
+
+Some common uses of this functionality include:
+
+=over
+
+=item Migrating data to RT from another ticketing system (JIRA, ServiceNow, etc.)
+
+This is the most common method of dumping ticket data from another system.
+Whether it be a CSV, TSV, or Excel file, this extension provides the
+flexibility needed to get that data into RT.
+
+=item Syncing data from a non-ticketing system (billing, lead generation, etc.) with RT
+
+For example, users might create sales leads in a lead-tracking system,
+then sync them to RT to create tickets for later follow up and conversation
+tracking.
+
+=item Importing user accounts from another system
+
+TODO
+
+=item Importing articles from another knowledge management system (KMS)
+
+TODO
+
+=back
 
 =head1 RT VERSION
 
@@ -1319,33 +1348,40 @@ Add this line:
 
 =head1 CONFIGURATION
 
-The following configuration would be used to import a three-column CSV
-of tickets, where the custom field C<Original Ticket ID> must be unique.
-That option can accept multiple values and the combination of values
-must find no existing tickets for insert, or a single ticket for update.
-If multiple tickets match, the CSV row is skipped.
+The following configuration can import a three-column CSV and illustrates
+the basic functionality of the CSV importer:
 
-    Set( @TicketsImportUniqueCFs, ('Original Ticket ID') );
+    Set( @TicketsImportUniqueCFs, ('Purchase Order ID') );
     Set( %TicketsImportFieldMapping,
-        'Created'               => 'Ticket-Create-Date',
-        'CF.Original Ticket ID' => 'TicketID',
-        'Subject'               => 'name',
+        'Created'              => 'Ticket-Create-Date',
+        'CF.Purchase Order ID' => 'PO-Number',
+        'Subject'              => 'name',
     );
+
+When creating a column mapping, the value to the left of C<=>> is
+the RT field name, and to the right is the column name in the CSV
+file. CSV files to be imported B<must> have a header line for the
+mapping to function.
+
+In this configuration, the custom field C<Purchase Order ID> must be
+unique, and can accept accept a combination of values. To insert a row
+with this config, RT must find no existing tickets, and for update RT
+must only find a single matching row. If neither condition matches, the
+CSV row is skipped.
 
 =head2 Excluding Existing Tickets By Status
 
-Some tickets will be opened, issues will be fixed, and the ticket will be marked
-as closed. Later, the same asset (e.g., a server) may have a new ticket
-opened for a newly found issue. In these cases, a new ticket should be
-created and the previous ticket should not be re-opened. To instruct
-the importer to exclude tickets in some statuses, set the following option:
+In the example above, when searching for an existing ticket for a PO,
+it may be necessary to skip certain existing tickets involving this PO
+that were previously resolved. To instruct the importer to exclude
+tickets in some statuses, set the following option:
 
-    Set( @ExcludeStatusesOnSearch, ('fixed'));
+    Set( @ExcludeStatusesOnSearch, ('resolved', 'cancelled'));
 
 =head2 Constant values
 
-If you want to set an RT column or custom field to a static value for
-all imported tickets, precede the "CSV field name" (right hand side of
+If you want to set an RT column or custom field to the same value for
+all imported tickets, precede the CSV field name (right hand side of
 the mapping) with a slash, like so:
 
     Set( %TicketsImportFieldMapping,
@@ -1360,7 +1396,7 @@ feature is particularly useful for setting the queue, but may also be
 useful when importing tickets from CSV sources you don't control (and
 don't want to modify each time).
 
-=head2 Computed values
+=head2 Computed values (advanced)
 
 You may also compute values during import, by passing a subroutine
 reference as the value in the C<%TicketsImportFieldMapping>.  This
@@ -1378,7 +1414,7 @@ underscores with spaces.
     );
 
 Using computed columns may cause false-positive "unused column"
-warnings; these can be ignored.
+warnings during the import; these can be ignored.
 
 =head2 Mandatory fields
 
@@ -1386,14 +1422,16 @@ To mark some ticket fields mandatory:
 
     Set( @TicketMandatoryFields, 'CF.Severity' );
 
-Then rows without "CF.Severity" values will be skipped.
+In this example, rows without a value for "CF.Severity" values will be
+skipped.
 
 =head2 Extra Options for Text::CSV_XS
 
-The CSV importer is configured to read the CSV import format determined when initially
-testing. However, the Text::CSV_XS module is configurable and can handle different
-CSV variations. You can pass through custom options using the configuration below.
-Available options are described in the documentation for L<Text::CSV_XS>.
+By default, the importer is configured for a most common variety of text
+files (comma-delimited, fields in double quotes). The underlying import
+module (L<Text::CSV_XS>) has many options to handle a wide array of file
+options, including unquoted fields, tab-delimited, byte order marking,
+etc. To pass custom options to the parser, use the following config:
 
     Set( %CSVOptions, (
         binary      => 1,
@@ -1401,6 +1439,69 @@ Available options are described in the documentation for L<Text::CSV_XS>.
         quote_char  => '`',
         escape_char => '`',
     ) );
+
+Available options are described in the documentation for L<Text::CSV_XS/"new"|Text::CSV_XS>.
+
+=head2 Special Columns
+
+=over
+
+=item Comment or Correspond
+
+To add a comment or correspond (reply) to a ticket, you can map a CSV column
+to "Comment" or "Correspond". When creating a ticket (--insert) you can use
+either one and the content will be added to the Create transaction.
+
+For more information, see the section for L</"IMPORTING TRANSACTIONS"|importing transations>.
+
+=back
+
+=head2 TicketsImportTicketIdField
+
+If the CSV data contains the ids of existing RT tickets, you can set this option
+to the name of the column containing the RT ticket id. The importer will then
+search for that ticket id and update the ticket data with CSV values.
+
+    Set($TicketsImportTicketIdField, 'RT ticket id');
+
+Only one of TicketsImportTicketIdField or @TicketsImportUniqueCFs can be used
+for a given CSV file. Also, this option is only valid for --update or --insert-update
+modes. You cannot specify the ticket id to be created in --insert mode.
+
+=head2 TicketTolerantRoles
+
+By default, if a user can't be loaded via LDAP for a role, like Owner,
+the importer will log it and skip creating the ticket. For roles that do not
+require a successfully loaded user, set this option with the role name.
+The importer will then log the failed attempt to find the user, but still
+create the ticket.
+
+    Set(@TicketTolerantRoles, 'CR.Subscribers Peers');
+
+=head1 IMPORTING TRANSACTIONS
+
+The importer can be used to import transactions for existing tickets.
+This is useful for bringing the entire ticket history into RT instead
+of just the most current ticket data.
+
+=head2 TransactionsImportFieldMapping
+
+Set the column mappings for importing transactions from a CSV file. A 'TicketID' mapping
+is required for RT to add the transaction to an existing ticket. The 'TicketID' value is
+mapped to the custom field 'Original Ticket ID'.
+
+Attachments can be included by providing the file system path for an attachment.
+
+    Set( %TransactionsImportFieldMapping,
+        'Attachment'     => 'Attachment',
+        'TicketID'       => 'SomeID',
+        'Created'        => 'Date',
+        'Type'           => 'Type',
+        'Content'        => 'Content',
+        'AttachmentType' => 'FileType'
+    );
+
+=head1 ADVANCED OPTIONS
 
 =head2 Operations before Create or Update
 
@@ -1470,59 +1571,17 @@ and the type of update, "Create" or "Update". CurrentUser is also passed
 as it may be needed to call other methods. You can run any code
 in the callback. It expects no return value.
 
-=head2 Special Columns
+=head1 RUNNING THE IMPORT WITH A NON-DEFAULT CONFIGURATION
 
-=over
+=head1 EXAMPLES
 
-=item Comment or Correspond
+=head2 Import an Excel file
 
-To add a comment or correspond (reply) to a ticket, you can map a CSV column
-to "Comment" or "Correspond". When creating a ticket (--insert) you can use
-either one and the content will be added to the Create transaction.
+TODO
 
-=back
+=head2 Import a tab-separated value (TSV) file
 
-=head2 TicketsImportTicketIdField
-
-If the CSV data contains the ids of existing RT tickets, you can set this option
-to the name of the column containing the RT ticket id. The importer will then
-search for that ticket id and update the ticket data with CSV values.
-
-    Set($TicketsImportTicketIdField, 'RT ticket id');
-
-Only one of TicketsImportTicketIdField or @TicketsImportUniqueCFs can be used
-for a given CSV file. Also, this option is only valid for --update or --insert-update
-modes. You cannot specify the ticket id to be created in --insert mode.
-
-=head2 TicketTolerantRoles
-
-By default, if a user can't be loaded via LDAP for a role, like Owner,
-the importer will log it and skip creating the ticket. For roles that do not
-require a successfully loaded user, set this option with the role name.
-The importer will then log the failed attempt to find the user, but still
-create the ticket.
-
-    Set(@TicketTolerantRoles, 'CR.Subscribers Peers');
-
-=head2 TransactionsImportFieldMapping
-
-Set the column mappings for importing transactions from a CSV file. A 'TicketID' mapping
-is required for RT to add the transaction to an existing ticket. The 'TicketID' value is
-mapped to the custom field 'Original Ticket ID'.
-
-Attachments can be included by providing the file system path for an attachment.
-
-    Set( %TransactionsImportFieldMapping,
-        'Attachment'     => 'Attachment',
-        'TicketID'       => 'SomeID',
-        'Created'        => 'Date',
-        'Type'           => 'Type',
-        'Content'        => 'Content',
-        'AttachmentType' => 'FileType'
-    );
-
-
-=cut
+TODO
 
 =head1 AUTHOR
 
