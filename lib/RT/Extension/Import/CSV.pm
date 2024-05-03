@@ -733,6 +733,7 @@ sub _run_tickets {
                 }
             }
 
+            my $invalid;
             my $ticket = RT::Ticket->new( $args{CurrentUser} );
             my $current_user = $args{CurrentUser};
             my %args;
@@ -1577,7 +1578,39 @@ in the callback. It expects no return value.
 
 =head2 Import an Excel file
 
-TODO
+Create a file in Excel, choose B<File / Save as> from the menu, and select
+C<CSV UTF-8 (Comma delimited) (.csv)> from the B<File Format> dropdown. Save
+it to a file named F<my-excel-test.csv>. Do not change any additional
+options.
+
+Create a new file called F<ExcelImport.pm> with the following:
+
+    Set($TicketsImportTicketIdField, 'Ticket No');
+
+    # RT fields -> Excel columns
+    Set( %TicketsImportFieldMapping,
+        'id'      => 'Ticket No',
+        'Owner'   => 'Assigned To',
+        'Status'  => 'Status',
+        'Subject' => 'Title',
+        'Queue'   => \'General',
+    );
+
+    # Default Excel export options
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '',
+        escape_char => '',
+    ) );
+
+Then run the import:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type ticket \
+        --config ExcelImport.pm \
+        --insert-update \
+        my-excel-test.csv
 
 =head2 Import a tab-separated value (TSV) file
 
