@@ -1315,7 +1315,10 @@ RT reduces the amount of administrative work necessary to make that happen.
 
 =item Importing articles from another knowledge management system (KMS)
 
-TODO
+RT allows you to include article content in comments and correspondence.
+An organization may have a library of this content already available. By
+exporting that content and importing it into RT, you can easily include
+it on tickets without having to copy/paste from a KMS.
 
 =back
 
@@ -1665,6 +1668,41 @@ Then run the following:
         --config UserImport.pm \
         --insert \
         users.csv
+
+=item Importing articles
+
+An example knowledge management system contains articles your organization
+would like to include on RT tickets. The export is delivered as such:
+
+    Title,Synopsis,Content
+    "Reset Password,"How to Reset a Password","This article explains how to reset a password in detail"
+    "Create User","How to Create a New User","Instructions on how to create a new user, in excruciating detail"
+
+Since there are commas in the content, fields in this CSV need to be
+quoted, so this needs to be accounted for in the import configuration.
+Create F<ArticleImport.pm> with the following:
+
+    Set( %ArticlesImportFieldMapping,
+        'Name'    => 'Title',
+        'Summary' => 'Synopsis',
+        'Content' => 'Content',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '"',
+        escape_char => '',
+    ) );
+
+You need to add C<--article-class> when running the import:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type article \
+        --article-class General \
+        --config ArticleImport.pm \
+        --insert \
+        articles.csv
 
 =head1 AUTHOR
 
