@@ -1309,7 +1309,9 @@ tracking.
 
 =item Importing user accounts from another system
 
-TODO
+In the above lead generation example, having the same users in both systems
+may be convenient. Exporting users from that system and importing them into
+RT reduces the amount of administrative work necessary to make that happen.
 
 =item Importing articles from another knowledge management system (KMS)
 
@@ -1627,6 +1629,42 @@ Then run the import:
 =head2 Import a tab-separated value (TSV) file
 
 TODO
+
+=head2 Import users from another system
+
+An example application exports users to the following file (F<users.csv>):
+
+    Login,Name,Email,Where At
+    support_user,Generic Support User,support_user@example.com,Call Center
+    admin_user,Generic Admin User,admin_user@example.com,HQ
+    end_user,Generic End User,end_user@example.com,Production Floor
+
+If you wanted to import those users into RT, create a new file called
+F<UserImport.pm> containing the following:
+
+    Set( %UsersImportFieldMapping,
+        'Name'            => 'Login',
+        'RealName'        => 'Name',
+        'EmailAddress'    => 'Email',
+        'UserCF.Location' => 'Where At',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '',
+        escape_char => '',
+    ) );
+
+(this assumes you have created a User Custom Field named Location)
+
+Then run the following:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type user \
+        --config UserImport.pm \
+        --insert \
+        users.csv
 
 =head1 AUTHOR
 
