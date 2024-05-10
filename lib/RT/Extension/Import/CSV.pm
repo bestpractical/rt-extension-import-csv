@@ -1533,13 +1533,13 @@ modes. You cannot specify the ticket id to be created in --insert mode.
 
 =head2 TicketTolerantRoles
 
-By default, if a user can't be loaded via LDAP for a role, like Owner,
-the importer will log it and skip creating the ticket. For roles that do not
-require a successfully loaded user, set this option with the role name.
-The importer will then log the failed attempt to find the user, but still
-create the ticket.
+By default, if a user can't be loaded for a role, like Owner, the importer
+will log it and skip creating the ticket. For roles that do not require a
+successfully loaded user, set this option with the role name. The importer
+will then log the failed attempt to find the user, but still create the
+ticket.
 
-    Set(@TicketTolerantRoles, 'CR.Subscribers Peers');
+    Set(@TicketTolerantRoles, 'CR.Customer');
 
 =head1 IMPORTING TRANSACTIONS
 
