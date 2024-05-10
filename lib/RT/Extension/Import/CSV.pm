@@ -1631,7 +1631,38 @@ Then run the import:
 
 =head2 Import a tab-separated value (TSV) file
 
-TODO
+To generate a sample TSV file, select B<Search / Tickets / New Search> from
+your RT menu. Pick some criteria, and don't change the default display
+format or column selections. Click B<Add these terms and search>. On the
+resulting search result page, select the B<Feeds / Spreadsheet> option.
+
+The following configuration (saved as F<TabImport.pm>) should match the
+resulting TSV file:
+
+    Set($TicketsImportTicketIdField, 'id');
+
+    Set( %TicketsImportFieldMapping,
+        'Queue' => \'General',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => "\t",
+        quote_char  => '',
+        escape_char => '',
+    ) );
+
+The double-quotes match the interpolated tab value, rather than a literal
+C<\t>. Other columns automatically align with fields in RT, so no
+additional mapping is required.
+
+Importing is similar to the previous example:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type ticket \
+        --config TabImport.pm \
+        --insert-update \
+        Results.tsv
 
 =head2 Import users from another system
 
