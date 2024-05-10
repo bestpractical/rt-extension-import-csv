@@ -189,7 +189,7 @@ __END__
 
 =head1 NAME
 
-rt-extension-csv-importer - Import data and create tickets in RT
+rt-extension-csv-importer - Import data into RT
 
 =head1 SYNOPSIS
 
@@ -201,8 +201,8 @@ rt-extension-csv-importer - Import data and create tickets in RT
 
 =head1 DESCRIPTION
 
-This script will import/update RT from data in a CSV file. See
-L<RT::Extension::Import::CSV> for configuration.
+This script will import/update RT from data in a CSV and other types of
+delimted files. See L<RT::Extension::Import::CSV> for configuration.
 
 =head1 OPTIONS
 
@@ -217,11 +217,11 @@ that may get merged with per-import settings. This option is required.
 
 =item C<--type> I<user|ticket|transaction|article> or C<-t> I<user|ticket|transaction|article>
 
-Specify which type of data we shall import
+Specify which type of data shall be imported. This is required.
 
 =item C<--article-class> I<article class name>
 
-Specify the article class when type is article.
+Specify the article class. Required when type is article.
 
 =item C<--update>
 
@@ -251,13 +251,17 @@ ticket if not found.
 By default, tickets containing not-existing users will be skipped; with this
 flag, they will be created without those users.
 
-This also allows the script to continue processing even errors are found
-when parsing csv.
+This also allows the script to continue processing even if errors are found
+when parsing the CSV file.
 
 =item C<--run-scrips>
 
-By default, scrips are temporarily deactivated on C<Transaction> creation. Use
-this flag to allow RT to run scrips accordingly.
+When importing transactions, the default behavior is to deactivate scrips
+on transaction creation. Use this flag to allow RT to run scrips
+accordingly.
+
+This flag only affects transaction import; scrips are always run for
+all other import types.
 
 =item C<--mdy>, C<--dmy>
 

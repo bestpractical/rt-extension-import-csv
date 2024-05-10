@@ -1050,6 +1050,8 @@ sub load_or_create_user {
     my $class = shift;
     my %args  = @_;
     my $user  = RT::User->new( delete $args{CurrentUser} );
+    $user->Load( $args{EmailAddress} );
+    return $user if $user->id;
     $user->LoadByEmail( $args{EmailAddress} );
     return $user if $user->id;
 
@@ -1322,6 +1324,13 @@ it on tickets without having to copy/paste from a KMS.
 
 =back
 
+This guide explains how to configure the import tool, and includes
+examples of how to run the import with different options. The actual
+import is run by L<rt-extension-import-csv> - there is no web-based
+component for the import process. Please see the documentation for
+L<rt-extension-import-csv> for more in-depth documentation about
+the options that the importer can be run with.
+
 =head1 RT VERSION
 
 Works with RT 5.
@@ -1422,6 +1431,42 @@ underscores with spaces.
 Using computed columns may cause false-positive "unused column"
 warnings during the import; these can be ignored.
 
+=head2 Dates and Date Formatting
+
+When importing tickets, the importer will automatically populate Created
+for you, provided there isn't a column in the source data already
+mapped to it. Other date fields must be provided in the source data.
+
+The importer expects incoming date values to conform to L<ISO|https://en.wikipedia.org/wiki/ISO_8601>
+datetime format (yyyy-mm-dd hh:mm::ss and other accepted variants). If
+your source data can't produce this formatting, Perl can help you out.
+
+For example, if the source data has dates in C<YYYY-MM-DD> format, we
+can write a function to append a default time to produce an ISO-formatted
+result:
+
+    Set( %TicketsImportFieldMapping,
+        'id'               => 'Ticket No',
+        'Owner'            => 'Assigned To',
+        'Status'           => 'Status',
+        'Subject'          => 'Title',
+        'Queue'            => \'General',
+        'CF.Delivery Date' => sub { return $_[0]->{ 'Delivery Date' } . ' 00:00:00'; },
+    );
+
+If you have other date columns you'd like to default to the date/time
+the import was run, Perl can help out there, too:
+
+    use POSIX qw(strftime);
+    Set( %TicketsImportFieldMapping,
+        'id'               => 'Ticket No',
+        'Owner'            => 'Assigned To',
+        'Status'           => 'Status',
+        'Subject'          => 'Title',
+        'Queue'            => \'General',
+        'CF.Project Start' => sub { return strftime "%Y-%m-%d %H:%M:%S", localtime; }
+    );
+
 =head2 Mandatory fields
 
 To mark some ticket fields mandatory:
@@ -1451,6 +1496,18 @@ Available options are described in the documentation for L<Text::CSV_XS/"new"|Te
 =head2 Special Columns
 
 =over
+
+=item Roles and Custom Roles
+
+For RT's built-in roles (Owner, Cc, AdminCc, Requestor) and any custom
+roles, the import will first assume the value provided is a user name,
+and will attempt to look up a user with that name, followed by email
+address. Failing that, the importer will try to create a privileged
+user with the provided name.
+
+Should a user exist with the name provided and the target RT has external
+auth configured, the import will attempt to update the user with the
+latest information from the auth provider.
 
 =item Comment or Correspond
 
@@ -1579,11 +1636,10 @@ in the callback. It expects no return value.
 
 =head1 RUNNING THE IMPORT WITH A NON-DEFAULT CONFIGURATION
 
-You can explicitly pass a configuration file to the importer. This is
-often used in conjunction when specifying an import type other than
-ticket. Use the C<--config> option to specify the path and filename
-to the configuration file to use; C<--type> indicates the type of
-import to run (article, ticket, transation, or article):
+You must explicitly pass a configuration file to the importer. Use the
+C<--config> option to specify the path and filename to the
+configuration file to use; C<--type> indicates the type of import to
+run (article, ticket, transation, or article):
 
     rt-extension-csv-importer --config /path/to/config.pm --type user /path/to/user-data.csv
     rt-extension-csv-importer --config /path/to/config.pm --type ticket /path/to/ticket-data.csv
