@@ -1574,6 +1574,18 @@ in the callback. It expects no return value.
 
 =head1 RUNNING THE IMPORT WITH A NON-DEFAULT CONFIGURATION
 
+You can explicitly pass a configuration file to the importer. This is
+often used in conjunction when specifying an import type other than
+ticket. Use the C<--config> option to specify the path and filename
+to the configuration file to use; C<--type> indicates the type of
+import to run (article, ticket, transation, or article):
+
+    rt-extension-csv-importer --config /path/to/config.pm --type user /path/to/user-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type ticket /path/to/ticket-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type ticket --update /path/to/ticket-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type transaction /path/to/transaction-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type article --article-class 'VM-Assessment' /path/to/article-data.csv
+
 =head1 EXAMPLES
 
 =head2 Import an Excel file
