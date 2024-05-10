@@ -1752,7 +1752,7 @@ href="http://rt.cpan.org/Public/Dist/Display.html?Name=RT-Extension-Import-CSV">
 
 =head1 LICENSE AND COPYRIGHT
 
-This software is Copyright (c) 2021 by Best Practical LLC
+This software is Copyright (c) 2024 by Best Practical LLC
 
 This is free software, licensed under:
 
