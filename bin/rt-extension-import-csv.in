@@ -25,11 +25,6 @@ if ( $opt{help} || !$file ) {
     exit;
 }
 
-unless ( $opt{config} ) {
-    Pod::Usage::pod2usage( "Option config is required" );
-    exit;
-}
-
 unless ( ( $opt{type} // '' ) =~ /^(?:user|ticket|transaction|article)$/ ) {
     Pod::Usage::pod2usage( "Invalid type provided, should be one of user/ticket/transaction/article" );
     exit;
@@ -213,7 +208,7 @@ delimted files. See L<RT::Extension::Import::CSV> for configuration.
 Provides an explicit extra configuration file which is loaded before any
 other configuration files.  This is useful to provide per-import settings.
 F<RT_SiteConfig.pm> should B<not> contain settings for options with hashes
-that may get merged with per-import settings. This option is required.
+that may get merged with per-import settings.
 
 =item C<--type> I<user|ticket|transaction|article> or C<-t> I<user|ticket|transaction|article>
 
