@@ -733,6 +733,7 @@ sub _run_tickets {
                 }
             }
 
+            my $invalid;
             my $ticket = RT::Ticket->new( $args{CurrentUser} );
             my $current_user = $args{CurrentUser};
             my %args;
@@ -1049,6 +1050,8 @@ sub load_or_create_user {
     my $class = shift;
     my %args  = @_;
     my $user  = RT::User->new( delete $args{CurrentUser} );
+    $user->Load( $args{EmailAddress} );
+    return $user if $user->id;
     $user->LoadByEmail( $args{EmailAddress} );
     return $user if $user->id;
 
@@ -1285,7 +1288,48 @@ RT-Extension-Import-CSV
 
 =head1 DESCRIPTION
 
-Import data into RT from CSVs.
+This extension is used to import data from a comma-separated value
+(CSV) file, or any other sort of delimited file, into RT. The importer
+provides functionality for importing tickets, transactions, users, and
+articles.
+
+Some common uses of this functionality include:
+
+=over
+
+=item Migrating data to RT from another ticketing system (JIRA, ServiceNow, etc.)
+
+This is the most common method of dumping ticket data from another system.
+Whether it be a CSV, TSV, or Excel file, this extension provides the
+flexibility needed to get that data into RT.
+
+=item Syncing data from a non-ticketing system (billing, lead generation, etc.) with RT
+
+For example, users might create sales leads in a lead-tracking system,
+then sync them to RT to create tickets for later follow up and conversation
+tracking.
+
+=item Importing user accounts from another system
+
+In the above lead generation example, having the same users in both systems
+may be convenient. Exporting users from that system and importing them into
+RT reduces the amount of administrative work necessary to make that happen.
+
+=item Importing articles from another knowledge management system (KMS)
+
+RT allows you to include article content in comments and correspondence.
+An organization may have a library of this content already available. By
+exporting that content and importing it into RT, you can easily include
+it on tickets without having to copy/paste from a KMS.
+
+=back
+
+This guide explains how to configure the import tool, and includes
+examples of how to run the import with different options. The actual
+import is run by L<rt-extension-import-csv> - there is no web-based
+component for the import process. Please see the documentation for
+L<rt-extension-import-csv> for more in-depth documentation about
+the options that the importer can be run with.
 
 =head1 RT VERSION
 
@@ -1319,33 +1363,40 @@ Add this line:
 
 =head1 CONFIGURATION
 
-The following configuration would be used to import a three-column CSV
-of tickets, where the custom field C<Original Ticket ID> must be unique.
-That option can accept multiple values and the combination of values
-must find no existing tickets for insert, or a single ticket for update.
-If multiple tickets match, the CSV row is skipped.
+The following configuration can import a three-column CSV and illustrates
+the basic functionality of the CSV importer:
 
-    Set( @TicketsImportUniqueCFs, ('Original Ticket ID') );
+    Set( @TicketsImportUniqueCFs, ('Purchase Order ID') );
     Set( %TicketsImportFieldMapping,
-        'Created'               => 'Ticket-Create-Date',
-        'CF.Original Ticket ID' => 'TicketID',
-        'Subject'               => 'name',
+        'Created'              => 'Ticket-Create-Date',
+        'CF.Purchase Order ID' => 'PO-Number',
+        'Subject'              => 'name',
     );
+
+When creating a column mapping, the value to the left of C<=>> is
+the RT field name, and to the right is the column name in the CSV
+file. CSV files to be imported B<must> have a header line for the
+mapping to function.
+
+In this configuration, the custom field C<Purchase Order ID> must be
+unique, and can accept accept a combination of values. To insert a row
+with this config, RT must find no existing tickets, and for update RT
+must only find a single matching row. If neither condition matches, the
+CSV row is skipped.
 
 =head2 Excluding Existing Tickets By Status
 
-Some tickets will be opened, issues will be fixed, and the ticket will be marked
-as closed. Later, the same asset (e.g., a server) may have a new ticket
-opened for a newly found issue. In these cases, a new ticket should be
-created and the previous ticket should not be re-opened. To instruct
-the importer to exclude tickets in some statuses, set the following option:
+In the example above, when searching for an existing ticket for a PO,
+it may be necessary to skip certain existing tickets involving this PO
+that were previously resolved. To instruct the importer to exclude
+tickets in some statuses, set the following option:
 
-    Set( @ExcludeStatusesOnSearch, ('fixed'));
+    Set( @ExcludeStatusesOnSearch, ('resolved', 'cancelled'));
 
 =head2 Constant values
 
-If you want to set an RT column or custom field to a static value for
-all imported tickets, precede the "CSV field name" (right hand side of
+If you want to set an RT column or custom field to the same value for
+all imported tickets, precede the CSV field name (right hand side of
 the mapping) with a slash, like so:
 
     Set( %TicketsImportFieldMapping,
@@ -1360,7 +1411,7 @@ feature is particularly useful for setting the queue, but may also be
 useful when importing tickets from CSV sources you don't control (and
 don't want to modify each time).
 
-=head2 Computed values
+=head2 Computed values (advanced)
 
 You may also compute values during import, by passing a subroutine
 reference as the value in the C<%TicketsImportFieldMapping>.  This
@@ -1378,7 +1429,43 @@ underscores with spaces.
     );
 
 Using computed columns may cause false-positive "unused column"
-warnings; these can be ignored.
+warnings during the import; these can be ignored.
+
+=head2 Dates and Date Formatting
+
+When importing tickets, the importer will automatically populate Created
+for you, provided there isn't a column in the source data already
+mapped to it. Other date fields must be provided in the source data.
+
+The importer expects incoming date values to conform to L<ISO|https://en.wikipedia.org/wiki/ISO_8601>
+datetime format (yyyy-mm-dd hh:mm::ss and other accepted variants). If
+your source data can't produce this formatting, Perl can help you out.
+
+For example, if the source data has dates in C<YYYY-MM-DD> format, we
+can write a function to append a default time to produce an ISO-formatted
+result:
+
+    Set( %TicketsImportFieldMapping,
+        'id'               => 'Ticket No',
+        'Owner'            => 'Assigned To',
+        'Status'           => 'Status',
+        'Subject'          => 'Title',
+        'Queue'            => \'General',
+        'CF.Delivery Date' => sub { return $_[0]->{ 'Delivery Date' } . ' 00:00:00'; },
+    );
+
+If you have other date columns you'd like to default to the date/time
+the import was run, Perl can help out there, too:
+
+    use POSIX qw(strftime);
+    Set( %TicketsImportFieldMapping,
+        'id'               => 'Ticket No',
+        'Owner'            => 'Assigned To',
+        'Status'           => 'Status',
+        'Subject'          => 'Title',
+        'Queue'            => \'General',
+        'CF.Project Start' => sub { return strftime "%Y-%m-%d %H:%M:%S", localtime; }
+    );
 
 =head2 Mandatory fields
 
@@ -1386,14 +1473,16 @@ To mark some ticket fields mandatory:
 
     Set( @TicketMandatoryFields, 'CF.Severity' );
 
-Then rows without "CF.Severity" values will be skipped.
+In this example, rows without a value for "CF.Severity" values will be
+skipped.
 
 =head2 Extra Options for Text::CSV_XS
 
-The CSV importer is configured to read the CSV import format determined when initially
-testing. However, the Text::CSV_XS module is configurable and can handle different
-CSV variations. You can pass through custom options using the configuration below.
-Available options are described in the documentation for L<Text::CSV_XS>.
+By default, the importer is configured for a most common variety of text
+files (comma-delimited, fields in double quotes). The underlying import
+module (L<Text::CSV_XS>) has many options to handle a wide array of file
+options, including unquoted fields, tab-delimited, byte order marking,
+etc. To pass custom options to the parser, use the following config:
 
     Set( %CSVOptions, (
         binary      => 1,
@@ -1401,6 +1490,81 @@ Available options are described in the documentation for L<Text::CSV_XS>.
         quote_char  => '`',
         escape_char => '`',
     ) );
+
+Available options are described in the documentation for L<Text::CSV_XS/"new"|Text::CSV_XS>.
+
+=head2 Special Columns
+
+=over
+
+=item Roles and Custom Roles
+
+For RT's built-in roles (Owner, Cc, AdminCc, Requestor) and any custom
+roles, the import will first assume the value provided is a user name,
+and will attempt to look up a user with that name, followed by email
+address. Failing that, the importer will try to create a privileged
+user with the provided name.
+
+Should a user exist with the name provided and the target RT has external
+auth configured, the import will attempt to update the user with the
+latest information from the auth provider.
+
+=item Comment or Correspond
+
+To add a comment or correspond (reply) to a ticket, you can map a CSV column
+to "Comment" or "Correspond". When creating a ticket (--insert) you can use
+either one and the content will be added to the Create transaction.
+
+For more information, see the section for L</"IMPORTING TRANSACTIONS"|importing transations>.
+
+=back
+
+=head2 TicketsImportTicketIdField
+
+If the CSV data contains the ids of existing RT tickets, you can set this option
+to the name of the column containing the RT ticket id. The importer will then
+search for that ticket id and update the ticket data with CSV values.
+
+    Set($TicketsImportTicketIdField, 'RT ticket id');
+
+Only one of TicketsImportTicketIdField or @TicketsImportUniqueCFs can be used
+for a given CSV file. Also, this option is only valid for --update or --insert-update
+modes. You cannot specify the ticket id to be created in --insert mode.
+
+=head2 TicketTolerantRoles
+
+By default, if a user can't be loaded for a role, like Owner, the importer
+will log it and skip creating the ticket. For roles that do not require a
+successfully loaded user, set this option with the role name. The importer
+will then log the failed attempt to find the user, but still create the
+ticket.
+
+    Set(@TicketTolerantRoles, 'CR.Customer');
+
+=head1 IMPORTING TRANSACTIONS
+
+The importer can be used to import transactions for existing tickets.
+This is useful for bringing the entire ticket history into RT instead
+of just the most current ticket data.
+
+=head2 TransactionsImportFieldMapping
+
+Set the column mappings for importing transactions from a CSV file. A 'TicketID' mapping
+is required for RT to add the transaction to an existing ticket. The 'TicketID' value is
+mapped to the custom field 'Original Ticket ID'.
+
+Attachments can be included by providing the file system path for an attachment.
+
+    Set( %TransactionsImportFieldMapping,
+        'Attachment'     => 'Attachment',
+        'TicketID'       => 'SomeID',
+        'Created'        => 'Date',
+        'Type'           => 'Type',
+        'Content'        => 'Content',
+        'AttachmentType' => 'FileType'
+    );
+
+=head1 ADVANCED OPTIONS
 
 =head2 Operations before Create or Update
 
@@ -1470,59 +1634,163 @@ and the type of update, "Create" or "Update". CurrentUser is also passed
 as it may be needed to call other methods. You can run any code
 in the callback. It expects no return value.
 
-=head2 Special Columns
+=head1 RUNNING THE IMPORT WITH A NON-DEFAULT CONFIGURATION
 
-=over
+You can explicitly pass a configuration file to the importer. This is
+often used in conjunction when specifying an import type other than
+ticket. Use the C<--config> option to specify the path and filename
+to the configuration file to use; C<--type> indicates the type of
+import to run (article, ticket, transation, or article):
 
-=item Comment or Correspond
+    rt-extension-csv-importer --config /path/to/config.pm --type user /path/to/user-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type ticket /path/to/ticket-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type ticket --update /path/to/ticket-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type transaction /path/to/transaction-data.csv
+    rt-extension-csv-importer --config /path/to/config.pm --type article --article-class 'VM-Assessment' /path/to/article-data.csv
 
-To add a comment or correspond (reply) to a ticket, you can map a CSV column
-to "Comment" or "Correspond". When creating a ticket (--insert) you can use
-either one and the content will be added to the Create transaction.
+=head1 EXAMPLES
 
-=back
+=head2 Import an Excel file
 
-=head2 TicketsImportTicketIdField
+Create a file in Excel, choose B<File / Save as> from the menu, and select
+C<CSV UTF-8 (Comma delimited) (.csv)> from the B<File Format> dropdown. Save
+it to a file named F<my-excel-test.csv>. Do not change any additional
+options.
 
-If the CSV data contains the ids of existing RT tickets, you can set this option
-to the name of the column containing the RT ticket id. The importer will then
-search for that ticket id and update the ticket data with CSV values.
+Create a new file called F<ExcelImport.pm> with the following:
 
-    Set($TicketsImportTicketIdField, 'RT ticket id');
+    Set($TicketsImportTicketIdField, 'Ticket No');
 
-Only one of TicketsImportTicketIdField or @TicketsImportUniqueCFs can be used
-for a given CSV file. Also, this option is only valid for --update or --insert-update
-modes. You cannot specify the ticket id to be created in --insert mode.
-
-=head2 TicketTolerantRoles
-
-By default, if a user can't be loaded via LDAP for a role, like Owner,
-the importer will log it and skip creating the ticket. For roles that do not
-require a successfully loaded user, set this option with the role name.
-The importer will then log the failed attempt to find the user, but still
-create the ticket.
-
-    Set(@TicketTolerantRoles, 'CR.Subscribers Peers');
-
-=head2 TransactionsImportFieldMapping
-
-Set the column mappings for importing transactions from a CSV file. A 'TicketID' mapping
-is required for RT to add the transaction to an existing ticket. The 'TicketID' value is
-mapped to the custom field 'Original Ticket ID'.
-
-Attachments can be included by providing the file system path for an attachment.
-
-    Set( %TransactionsImportFieldMapping,
-        'Attachment'     => 'Attachment',
-        'TicketID'       => 'SomeID',
-        'Created'        => 'Date',
-        'Type'           => 'Type',
-        'Content'        => 'Content',
-        'AttachmentType' => 'FileType'
+    # RT fields -> Excel columns
+    Set( %TicketsImportFieldMapping,
+        'id'      => 'Ticket No',
+        'Owner'   => 'Assigned To',
+        'Status'  => 'Status',
+        'Subject' => 'Title',
+        'Queue'   => \'General',
     );
 
+    # Default Excel export options
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '',
+        escape_char => '',
+    ) );
 
-=cut
+Then run the import:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type ticket \
+        --config ExcelImport.pm \
+        --insert-update \
+        my-excel-test.csv
+
+=head2 Import a tab-separated value (TSV) file
+
+To generate a sample TSV file, select B<Search / Tickets / New Search> from
+your RT menu. Pick some criteria, and don't change the default display
+format or column selections. Click B<Add these terms and search>. On the
+resulting search result page, select the B<Feeds / Spreadsheet> option.
+
+The following configuration (saved as F<TabImport.pm>) should match the
+resulting TSV file:
+
+    Set($TicketsImportTicketIdField, 'id');
+
+    Set( %TicketsImportFieldMapping,
+        'Queue' => \'General',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => "\t",
+        quote_char  => '',
+        escape_char => '',
+    ) );
+
+The double-quotes match the interpolated tab value, rather than a literal
+C<\t>. Other columns automatically align with fields in RT, so no
+additional mapping is required.
+
+Importing is similar to the previous example:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type ticket \
+        --config TabImport.pm \
+        --insert-update \
+        Results.tsv
+
+=head2 Import users from another system
+
+An example application exports users to the following file (F<users.csv>):
+
+    Login,Name,Email,Where At
+    support_user,Generic Support User,support_user@example.com,Call Center
+    admin_user,Generic Admin User,admin_user@example.com,HQ
+    end_user,Generic End User,end_user@example.com,Production Floor
+
+If you wanted to import those users into RT, create a new file called
+F<UserImport.pm> containing the following:
+
+    Set( %UsersImportFieldMapping,
+        'Name'            => 'Login',
+        'RealName'        => 'Name',
+        'EmailAddress'    => 'Email',
+        'UserCF.Location' => 'Where At',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '',
+        escape_char => '',
+    ) );
+
+(this assumes you have created a User Custom Field named Location)
+
+Then run the following:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type user \
+        --config UserImport.pm \
+        --insert \
+        users.csv
+
+=item Importing articles
+
+An example knowledge management system contains articles your organization
+would like to include on RT tickets. The export is delivered as such:
+
+    Title,Synopsis,Content
+    "Reset Password,"How to Reset a Password","This article explains how to reset a password in detail"
+    "Create User","How to Create a New User","Instructions on how to create a new user, in excruciating detail"
+
+Since there are commas in the content, fields in this CSV need to be
+quoted, so this needs to be accounted for in the import configuration.
+Create F<ArticleImport.pm> with the following:
+
+    Set( %ArticlesImportFieldMapping,
+        'Name'    => 'Title',
+        'Summary' => 'Synopsis',
+        'Content' => 'Content',
+    );
+
+    Set( %CSVOptions, (
+        binary      => 1,
+        sep_char    => ',',
+        quote_char  => '"',
+        escape_char => '',
+    ) );
+
+You need to add C<--article-class> when running the import:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type article \
+        --article-class General \
+        --config ArticleImport.pm \
+        --insert \
+        articles.csv
 
 =head1 AUTHOR
 
@@ -1541,7 +1809,7 @@ href="http://rt.cpan.org/Public/Dist/Display.html?Name=RT-Extension-Import-CSV">
 
 =head1 LICENSE AND COPYRIGHT
 
-This software is Copyright (c) 2021 by Best Practical LLC
+This software is Copyright (c) 2024 by Best Practical LLC
 
 This is free software, licensed under:
 
