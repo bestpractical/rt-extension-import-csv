@@ -184,8 +184,7 @@ CONFIGURATION
             escape_char => '`',
         ) );
 
-    Available options are described in the documentation for
-    Text::CSV_XS/"new".
+    Available options are described in the documentation for Text::CSV_XS.
 
   Special Columns
     Roles and Custom Roles
@@ -205,7 +204,7 @@ CONFIGURATION
         (--insert) you can use either one and the content will be added to
         the Create transaction.
 
-        For more information, see the section for /"IMPORTING TRANSACTIONS".
+        For more information, see the section for importing transations.
 
   TicketsImportTicketIdField
     If the CSV data contains the ids of existing RT tickets, you can set
@@ -436,40 +435,40 @@ EXAMPLES
             --insert \
             users.csv
 
-    Importing articles
-        An example knowledge management system contains articles your
-        organization would like to include on RT tickets. The export is
-        delivered as such:
+  Importing articles
+    An example knowledge management system contains articles your
+    organization would like to include on RT tickets. The export is
+    delivered as such:
 
-            Title,Synopsis,Content
-            "Reset Password,"How to Reset a Password","This article explains how to reset a password in detail"
-            "Create User","How to Create a New User","Instructions on how to create a new user, in excruciating detail"
+        Title,Synopsis,Content
+        "Reset Password,"How to Reset a Password","This article explains how to reset a password in detail"
+        "Create User","How to Create a New User","Instructions on how to create a new user, in excruciating detail"
 
-        Since there are commas in the content, fields in this CSV need to be
-        quoted, so this needs to be accounted for in the import
-        configuration. Create ArticleImport.pm with the following:
+    Since there are commas in the content, fields in this CSV need to be
+    quoted, so this needs to be accounted for in the import configuration.
+    Create ArticleImport.pm with the following:
 
-            Set( %ArticlesImportFieldMapping,
-                'Name'    => 'Title',
-                'Summary' => 'Synopsis',
-                'Content' => 'Content',
-            );
+        Set( %ArticlesImportFieldMapping,
+            'Name'    => 'Title',
+            'Summary' => 'Synopsis',
+            'Content' => 'Content',
+        );
 
-            Set( %CSVOptions, (
-                binary      => 1,
-                sep_char    => ',',
-                quote_char  => '"',
-                escape_char => '',
-            ) );
+        Set( %CSVOptions, (
+            binary      => 1,
+            sep_char    => ',',
+            quote_char  => '"',
+            escape_char => '',
+        ) );
 
-        You need to add --article-class when running the import:
+    You need to add --article-class when running the import:
 
-            /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
-                --type article \
-                --article-class General \
-                --config ArticleImport.pm \
-                --insert \
-                articles.csv
+        /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+            --type article \
+            --article-class General \
+            --config ArticleImport.pm \
+            --insert \
+            articles.csv
 
 AUTHOR
     Best Practical Solutions, LLC <modules@bestpractical.com>
@@ -484,21 +483,4 @@ LICENSE AND COPYRIGHT
     This is free software, licensed under:
 
       The GNU General Public License, Version 2, June 1991
-
-POD ERRORS
-    Hey! The above document had some coding errors, which are explained
-    below:
-
-    Around line 1494:
-        alternative text 'Text::CSV_XS/"new"' contains non-escaped | or /
-
-    Around line 1518:
-        alternative text '/"IMPORTING TRANSACTIONS"' contains non-escaped |
-        or /
-
-    Around line 1760:
-        '=item' outside of any '=over'
-
-    Around line 1795:
-        You forgot a '=back' before '=head1'
 

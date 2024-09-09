@@ -410,7 +410,7 @@ sub _run_tickets {
         local $CurrentLine = $item->{_line};
         $RT::Logger->debug( "Start processing" );
         next unless grep { defined $_ && /\S/ } values %{ { %$item, _line => undef } };
-    
+
         my $tickets = RT::Tickets->new( $args{CurrentUser} );
 
         # Exclude statuses configured within ExcludeStatusesOnSearch from the loaded tickets
@@ -1491,7 +1491,7 @@ etc. To pass custom options to the parser, use the following config:
         escape_char => '`',
     ) );
 
-Available options are described in the documentation for L<Text::CSV_XS/"new"|Text::CSV_XS>.
+Available options are described in the documentation for L<Text::CSV_XS|Text::CSV_XS/"new">.
 
 =head2 Special Columns
 
@@ -1515,7 +1515,7 @@ To add a comment or correspond (reply) to a ticket, you can map a CSV column
 to "Comment" or "Correspond". When creating a ticket (--insert) you can use
 either one and the content will be added to the Create transaction.
 
-For more information, see the section for L</"IMPORTING TRANSACTIONS"|importing transations>.
+For more information, see the section for L<importing transations|/"IMPORTING TRANSACTIONS">.
 
 =back
 
@@ -1757,7 +1757,7 @@ Then run the following:
         --insert \
         users.csv
 
-=item Importing articles
+=head2 Importing articles
 
 An example knowledge management system contains articles your organization
 would like to include on RT tickets. The export is delivered as such:
