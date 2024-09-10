@@ -421,7 +421,7 @@ sub _run_tickets {
         if ( scalar @excluded_statuses ) {
             foreach my $status ( @excluded_statuses ) {
                 unless ( $default_queue->LifecycleObj->IsValid( lc($status) ) ) {
-                    $RT::Logger->warning( "Status '$status' is not valid. Tickets match will not exclude '$status'" );
+                    $RT::Logger->warning( "Status '$status' is not valid. Tickets matching '$status' will not be excluded" );
                     next;
                 }
 
@@ -496,10 +496,10 @@ sub _run_tickets {
                 $ticket = $tickets->First;
                 my $ticket_id = $ticket->Id;
                 if ( RT->Config->Get('TicketsImportTicketIdField') ) {
-                    $RT::Logger->debug( "Found existing ticket($ticket_id)" );
+                    $RT::Logger->debug( "Found existing ticket ($ticket_id)" );
                 }
                 else {
-                    $RT::Logger->debug( "Found existing ticket($ticket_id) for CFs. $unique_fields" );
+                    $RT::Logger->debug( "Found existing ticket ($ticket_id) for CFs. $unique_fields" );
                 }
             }
 
