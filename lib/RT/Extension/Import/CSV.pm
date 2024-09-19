@@ -1795,6 +1795,90 @@ You need to add C<--article-class> when running the import:
         --insert \
         articles.csv
 
+=head2 Putting it all together: migrating from Zendesk
+
+It's possible to migrate from Zendesk to Request Tracker using multiple
+imports defined above. Starting with a Zendesk trial site as a basis, the
+following steps are necessary before a migration can begin:
+
+=over
+
+=item Users must be exported via API
+
+Unfortunately, Zendesk only provides an export for what RT considers to
+be privileged users. To get all users, you'll need to access Zendesk's
+API. See L<this forum post|https://support.zendesk.com/hc/en-us/articles/4408882924570/comments/6460643115162> for more information.
+
+=item Tickets must be exported to CSV
+
+Any of the default lists of tickets in Zendesk can be exported to CSV.
+See the Zendesk documentation for more information.
+
+=back
+
+Exporting user information via the Zendesk API includes a bunch of
+unnecessary values. For this import, the only columns that matter are
+C<name> and C<email>.
+
+Create a new file called F<ZendeskUsers.pm>:
+
+    Set( %UsersImportFieldMapping,
+        'Name'            => 'name',
+        'RealName'        => 'name',
+        'EmailAddress'    => 'email',
+    );
+
+    Set( %CSVOptions, (
+       sep_char    => ',',
+       quote_char  => '"',
+       escape_char => '',
+    ) );
+
+Assuming the user export above produced a file named F<zendesk_users.csv>,
+run the import:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type user \
+        --config ZendeskUsers.pm \
+        --insert \
+        zendesk_users.csv
+
+For tickets, create F<ZendeskTickets.pm> using the following
+configuration:
+
+    Set($TicketsImportTicketIdField, 'ID');
+
+    Set( %TicketsImportFieldMapping,
+        'Queue'          => \'General',
+        'Status'         => 'Status',
+        'Subject'        => 'Subject',
+        'Requestor'      => 'Requester',
+        'Created'        => 'Requested',
+        'LastUpdated'    => 'Updated',
+        'CF.Ticket Type' => 'Topic',
+        'CF.Channel'     => 'Channel',
+    );
+
+    Set( %CSVOptions, (
+       sep_char    => ',',
+       quote_char  => '"',
+       escape_char => '',
+    ) );
+
+(you'll need to create two ticket custom fields: Ticket Type and Channel)
+
+If tickets were exported to a file named F<zendesk_tickets.csv>, the
+following command will import tickets into your RT instance:
+
+    /opt/rt5/local/plugins/RT-Extension-Import-CSV/bin/rt-extension-import-csv \
+        --type ticket \
+        --config ZendeskTickets.pm \
+        --insert-update \
+        zendesk_tickets.csv
+
+For a production instance of Zendesk, you'll need to adjust the columns
+in the ticket import configuration to match your configuration.
+
 =head1 AUTHOR
 
 Best Practical Solutions, LLC E<lt>modules@bestpractical.comE<gt>
