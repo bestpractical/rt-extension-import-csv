@@ -250,7 +250,7 @@ sub _run_transactions {
             elsif ($fieldname =~ /^(Created)$/) {
                 my $date = RT::Date->new( RT->SystemUser );
                 my $value = $class->get_value( $field2csv->{'Created'}, $item );
-                $date->Set( Format => 'iso', Value => $value );
+                $date->Set( Format => 'unknown', Value => $value );
 
                 ( my $ok, $msg ) = $txn_object->__Set( Field => 'Created', Value => $date->ISO );
                 $RT::Logger->error( "Failed to set Created on transaction: $msg" ) unless $ok;
@@ -421,7 +421,7 @@ sub _run_tickets {
         if ( scalar @excluded_statuses ) {
             foreach my $status ( @excluded_statuses ) {
                 unless ( $default_queue->LifecycleObj->IsValid( lc($status) ) ) {
-                    $RT::Logger->warning( "Status '$status' is not valid. Tickets match will not exclude '$status'" );
+                    $RT::Logger->warning( "Status '$status' is not valid. Tickets matching '$status' will not be excluded" );
                     next;
                 }
 
@@ -496,10 +496,10 @@ sub _run_tickets {
                 $ticket = $tickets->First;
                 my $ticket_id = $ticket->Id;
                 if ( RT->Config->Get('TicketsImportTicketIdField') ) {
-                    $RT::Logger->debug( "Found existing ticket($ticket_id)" );
+                    $RT::Logger->debug( "Found existing ticket ($ticket_id)" );
                 }
                 else {
-                    $RT::Logger->debug( "Found existing ticket($ticket_id) for CFs. $unique_fields" );
+                    $RT::Logger->debug( "Found existing ticket ($ticket_id) for CFs. $unique_fields" );
                 }
             }
 
@@ -892,7 +892,7 @@ sub _run_tickets {
             my $created_date = delete $args{Created};
             if ( $created_date ) {
                 my $date = RT::Date->new( RT->SystemUser );
-                $date->Set( Format => 'iso', Value => $created_date );
+                $date->Set( Format => 'unknown', Value => $created_date );
                 if ( !$date->Unix ) {
                     if ($force) {
                         RT->Logger->error("Created date '$created_date' is not valid, creating without it");
@@ -928,7 +928,7 @@ sub _run_tickets {
 
             if ( $created_date ) {
                 my $date = RT::Date->new( RT->SystemUser );
-                $date->Set( Format => 'iso', Value => $created_date );
+                $date->Set( Format => 'unknown', Value => $created_date );
                 ( $ok, $msg ) = $ticket->__Set( Field => 'Created', Value => $date->ISO );
                 $RT::Logger->error("Failed to set Created on ticket: $msg") unless $ok;
 
@@ -1037,7 +1037,7 @@ sub set_fixed_time {
     my $class = shift;
     my $value = shift;
     my $date  = RT::Date->new( RT->SystemUser );
-    $date->Set( Format => 'iso', Value => $value );
+    $date->Set( Format => 'unknown', Value => $value );
     if ( $date->Unix > 0 ) {
         Test::MockTime::set_fixed_time( $date->Unix );
     }
@@ -1437,12 +1437,15 @@ When importing tickets, the importer will automatically populate Created
 for you, provided there isn't a column in the source data already
 mapped to it. Other date fields must be provided in the source data.
 
-The importer expects incoming date values to conform to L<ISO|https://en.wikipedia.org/wiki/ISO_8601>
-datetime format (yyyy-mm-dd hh:mm::ss and other accepted variants). If
-your source data can't produce this formatting, Perl can help you out.
+The importer does a fairly good job at guessing the source datetime
+format; if the source datetime format can't be parsed, Perl can help you
+out.
 
-For example, if the source data has dates in C<YYYY-MM-DD> format, we
-can write a function to append a default time to produce an ISO-formatted
+If you have to munge dates, we recommend converting them to the
+L<ISO|https://en.wikipedia.org/wiki/ISO_8601> datetime format
+(yyyy-mm-dd hh:mm::ss and other accepted variants). For example,
+if the source data has dates in C<YYYY-MM-DD> format, we can write
+a function to append a default time to produce an ISO-formatted
 result:
 
     Set( %TicketsImportFieldMapping,
