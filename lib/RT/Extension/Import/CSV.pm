@@ -5,7 +5,7 @@ package RT::Extension::Import::CSV;
 use Text::CSV_XS;
 use Test::MockTime 'restore_time';
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our( $CurrentRow, $CurrentLine, $UniqueFields );
 
