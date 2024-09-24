@@ -1373,16 +1373,15 @@ the basic functionality of the CSV importer:
         'Subject'              => 'name',
     );
 
-When creating a column mapping, the value to the left of C<=>> is
+When creating a column mapping, the value to the left of C<< => >> is
 the RT field name, and to the right is the column name in the CSV
 file. CSV files to be imported B<must> have a header line for the
 mapping to function.
 
 In this configuration, the custom field C<Purchase Order ID> must be
-unique, and can accept accept a combination of values. To insert a row
-with this config, RT must find no existing tickets, and for update RT
-must only find a single matching row. If neither condition matches, the
-CSV row is skipped.
+unique. To insert a row with this config, RT must find no existing
+tickets, and for update RT must only find a single matching row. If
+neither condition matches, the CSV row is skipped.
 
 =head2 Excluding Existing Tickets By Status
 
@@ -1798,8 +1797,8 @@ You need to add C<--article-class> when running the import:
 =head2 Putting it all together: migrating from Zendesk
 
 It's possible to migrate from Zendesk to Request Tracker using multiple
-imports defined above. Starting with a Zendesk trial site as a basis, the
-following steps are necessary before a migration can begin:
+imports defined above. The following steps are necessary before a
+migration can begin:
 
 =over
 
