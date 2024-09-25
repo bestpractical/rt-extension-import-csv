@@ -377,7 +377,7 @@ sub _run_tickets {
         } elsif ($fieldname =~ /^(id|Creator|LastUpdated|Created|Queue|Requestor|Cc|AdminCc|SquelchMailTo|Type|Owner|
             Subject|Priority|InitialPriority|FinalPriority|Status|TimeEstimated|TimeWorked|TimeLeft|Starts|Due|MIMEObj|
             Comment|Correspond|MemberOf|Parents|Parent|Members|Member|Children|Child|HasMember|RefersTo|ReferredToBy|
-            DependsOn|DependedOnBy)$/x) {
+            DependsOn|DependedOnBy|Told)$/x) {
             # no-op, these are fine
         } else {
             $RT::Logger->warning(
@@ -878,6 +878,15 @@ sub _run_tickets {
                 }
             }
 
+            my $told = delete( $args{Told} );
+            if( $told ) {
+                my $date = RT::Date->new( RT->SystemUser );
+                $date->Set( Format => 'unknown', Value => $told );
+                if ( !$date->Unix ) {
+                    RT->Logger->error("Told '$told' is not valid, creating without it");
+                }
+            }
+
             my $status = delete( $args{Status} );
             if ( $status && !$default_queue->LifecycleObj->IsValid($status) ) {
                 if ($force) {
@@ -911,7 +920,6 @@ sub _run_tickets {
             }
 
             my ($ok, $txnobj, $msg) = $ticket->Create( %args );
-
             if ($ok) {
                 $created++;
             } else {
@@ -919,6 +927,13 @@ sub _run_tickets {
                 $skipped++;
                 push @skipped, $item;
                 next ROW;
+            }
+
+            if( $told ) {
+                my $date = RT::Date->new( RT->SystemUser );
+                $date->Set( Format => 'unknown', Value => $told );
+                ($ok, $msg) = $ticket->__Set( Field => 'Told', Value => $date->ISO );
+                $RT::Logger->error("Failed to set Told on ticket: $msg") unless $ok;
             }
 
             if ($status && $status ne $ticket->Status) {
