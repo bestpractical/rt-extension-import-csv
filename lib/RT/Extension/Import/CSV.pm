@@ -1828,6 +1828,16 @@ API. See L<this forum post|https://support.zendesk.com/hc/en-us/articles/4408882
 Any of the default lists of tickets in Zendesk can be exported to CSV.
 See the Zendesk documentation for more information.
 
+=item RT Priority field must be customized
+
+Zendesk priorities do not align 1:1 with RT's by default. The following
+can be dropped into your RT configuration to match priorities between
+the two systems:
+
+    Set(%PriorityAsString,
+        Default => { None => 0, Low => 25, Normal => 50, High => 75, Urgent => 100 },
+    );
+
 =back
 
 Exporting user information via the Zendesk API includes a bunch of
@@ -1869,8 +1879,12 @@ configuration:
         'Requestor'      => 'Requester',
         'Created'        => 'Requested',
         'LastUpdated'    => 'Updated',
-        'CF.Ticket Type' => 'Topic',
-        'CF.Channel'     => 'Channel',
+        'CF.Topic'       => 'Topic',
+        'Told'           => 'Assignee updated',
+        'Priority'       => sub {
+            my %priority = RT->Config->Get('PriorityAsString');
+            return $priority{ 'Default' }{ ($_[0]->{ 'Priority' }) };
+        },
     );
 
     Set( %CSVOptions, (
@@ -1879,7 +1893,7 @@ configuration:
        escape_char => '',
     ) );
 
-(you'll need to create two ticket custom fields: Ticket Type and Channel)
+(you'll need to create a custom field named Topic)
 
 If tickets were exported to a file named F<zendesk_tickets.csv>, the
 following command will import tickets into your RT instance:
