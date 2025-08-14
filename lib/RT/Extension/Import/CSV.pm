@@ -377,7 +377,7 @@ sub _run_tickets {
         } elsif ($fieldname =~ /^(id|Creator|LastUpdated|Created|Queue|Requestor|Cc|AdminCc|SquelchMailTo|Type|Owner|
             Subject|Priority|InitialPriority|FinalPriority|Status|TimeEstimated|TimeWorked|TimeLeft|Starts|Due|MIMEObj|
             Comment|Correspond|MemberOf|Parents|Parent|Members|Member|Children|Child|HasMember|RefersTo|ReferredToBy|
-            DependsOn|DependedOnBy|Told)$/x) {
+            DependsOn|DependedOnBy|Told|Description)$/x) {
             # no-op, these are fine
         } else {
             $RT::Logger->warning(
